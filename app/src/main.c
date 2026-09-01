@@ -8,6 +8,24 @@ LOG_MODULE_REGISTER(demo, LOG_LEVEL_DBG);
 #define PRIO_LOW  7
 #define PRIO_MED  5
 #define PRIO_HIGH 3
+#define PRIO_COOP -1
+
+static volatile uint32_t busy_counter;
+
+void t_coop_fn(void *p1, void *p2, void *p3)
+{
+	LOG_INF("T_COOP started");
+	
+    while (1) {
+        for (int i = 0; i < 5; i++) {
+            for (volatile int j = 0; j < 10000; j++) {
+                busy_counter++;
+            }
+        }
+
+        k_yield();
+    }
+}
 
 void t_low_fn(void *p1, void *p2, void *p3)
 {
@@ -33,6 +51,9 @@ void t_high_fn(void *p1, void *p2, void *p3)
     }
 }
 
+K_THREAD_DEFINE(thread_coop, STACK_SIZE, t_coop_fn,
+                NULL, NULL, NULL, PRIO_COOP, 0, 0);
+				
 K_THREAD_DEFINE(thread_low, STACK_SIZE, t_low_fn,
                 NULL, NULL, NULL, PRIO_LOW, 0, 0);
 
