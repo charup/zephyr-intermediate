@@ -50,7 +50,7 @@ LOG_MODULE_REGISTER(homework, LOG_LEVEL_DBG);
 #define STACK_SIZE    1024
 #define SENSOR_MS     100    /* sensor fires every 100ms */
 #define POLL_MS       10     /* polling consumer checks every 10ms */
-#define EVENT_COUNT   10     /* total sensor events to produce */
+#define EVENT_COUNT   5     /* total sensor events to produce */
 
 /* ================================================================
  * STARTER CODE -- inefficient polling version
@@ -71,7 +71,7 @@ static void sensor_handler(struct k_work *work)
 	        total_processed, k_uptime_get_32());
 }
 
-K_WORK_DEFINE(sensor_work, sensor_handler);
+K_WORK_DELAYABLE_DEFINE(debounce_work, sensor_handler);
 
 /* ------------------------------------------------------------------ */
 /*  sensor_sim - fires EVENT_COUNT events, 100ms apart               */
@@ -80,8 +80,7 @@ K_WORK_DEFINE(sensor_work, sensor_handler);
 static void sensor_sim_fn(void *p1, void *p2, void *p3)
 {
     for (int i = 0; i < EVENT_COUNT; i++) {
-        k_msleep(SENSOR_MS);
-
+        
         total_events++;
         LOG_INF("[SENSOR] event %d  tick=%u", i, k_uptime_get_32());
 
@@ -94,14 +93,16 @@ static void sensor_sim_fn(void *p1, void *p2, void *p3)
          *
          * Remove sensor_flag entirely once you do that.
          */
-		int ret = k_work_submit(&sensor_work);
-		if (ret < 0) { LOG_ERR("submit failed: %d", ret); }
+		int ret = k_work_reschedule(&debounce_work, K_MSEC(30));
+		if (ret < 0) { LOG_ERR("reschedule failed: %d", ret); }
 
         /*
          * BONUS: Replace the single k_msleep(SENSOR_MS) above with
          * a burst of 5 rapid events, then use k_work_reschedule in
          * the handler to collapse them to one execution.
          */
+		 
+		 k_msleep(4);
     }
 
     LOG_INF("[SENSOR] all events produced");
