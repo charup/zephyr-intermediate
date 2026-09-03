@@ -9,15 +9,21 @@ LOG_MODULE_REGISTER(demo, LOG_LEVEL_DBG);
 
 static volatile int shared_counter;
 
+K_MUTEX_DEFINE(counter_mutex);
+
 void thread_a_fn(void *p1, void *p2, void *p3)
 {
     for (int i = 0; i < NUM_ITERATIONS; i++) {
-        int temp = shared_counter;
+        k_mutex_lock(&counter_mutex, K_FOREVER);
+
+		int temp = shared_counter;
 
         /* Deliberately create a scheduling window */
         k_yield();
 
         shared_counter = temp + 1;
+
+		k_mutex_unlock(&counter_mutex);
     }
 
     LOG_INF("Thread A done");
@@ -26,12 +32,16 @@ void thread_a_fn(void *p1, void *p2, void *p3)
 void thread_b_fn(void *p1, void *p2, void *p3)
 {
     for (int i = 0; i < NUM_ITERATIONS; i++) {
-        int temp = shared_counter;
+        k_mutex_lock(&counter_mutex, K_FOREVER);
+		
+		int temp = shared_counter;
 
         /* Deliberately create a scheduling window */
         k_yield();
 
         shared_counter = temp + 1;
+		
+		k_mutex_unlock(&counter_mutex);
     }
 
     LOG_INF("Thread B done");
