@@ -4,68 +4,54 @@
 LOG_MODULE_REGISTER(demo, LOG_LEVEL_DBG);
 
 #define STACK_SIZE 1024
+#define THREAD_PRIORITY 5
+#define NUM_ITERATIONS 10000
 
-#define PRIO_LOW  7
-#define PRIO_MED  5
-#define PRIO_HIGH 3
-#define PRIO_COOP -1
+static volatile int shared_counter;
 
-static volatile uint32_t busy_counter;
-
-void t_coop_fn(void *p1, void *p2, void *p3)
+void thread_a_fn(void *p1, void *p2, void *p3)
 {
-	LOG_INF("T_COOP started");
-	
-    while (1) {
-        for (int i = 0; i < 5; i++) {
-            for (volatile int j = 0; j < 10000; j++) {
-                busy_counter++;
-            }
-        }
+    for (int i = 0; i < NUM_ITERATIONS; i++) {
+        int temp = shared_counter;
 
+        /* Deliberately create a scheduling window */
         k_yield();
+
+        shared_counter = temp + 1;
     }
+
+    LOG_INF("Thread A done");
 }
 
-void t_low_fn(void *p1, void *p2, void *p3)
+void thread_b_fn(void *p1, void *p2, void *p3)
 {
-    while (1) {
-        LOG_INF("T_LOW running");
-        k_msleep(300);
+    for (int i = 0; i < NUM_ITERATIONS; i++) {
+        int temp = shared_counter;
+
+        /* Deliberately create a scheduling window */
+        k_yield();
+
+        shared_counter = temp + 1;
     }
+
+    LOG_INF("Thread B done");
 }
 
-void t_med_fn(void *p1, void *p2, void *p3)
-{
-    while (1) {
-        LOG_INF("T_MED running");
-        k_msleep(200);
-    }
-}
+K_THREAD_DEFINE(thread_a, STACK_SIZE, thread_a_fn,
+                NULL, NULL, NULL, THREAD_PRIORITY, 0, 0);
 
-void t_high_fn(void *p1, void *p2, void *p3)
-{
-    while (1) {
-        LOG_INF("T_HIGH running");
-        k_msleep(100);
-    }
-}
-
-K_THREAD_DEFINE(thread_coop, STACK_SIZE, t_coop_fn,
-                NULL, NULL, NULL, PRIO_COOP, 0, 0);
-				
-K_THREAD_DEFINE(thread_low, STACK_SIZE, t_low_fn,
-                NULL, NULL, NULL, PRIO_LOW, 0, 0);
-
-K_THREAD_DEFINE(thread_med, STACK_SIZE, t_med_fn,
-                NULL, NULL, NULL, PRIO_MED, 0, 0);
-
-K_THREAD_DEFINE(thread_high, STACK_SIZE, t_high_fn,
-                NULL, NULL, NULL, PRIO_HIGH, 0, 0);
+K_THREAD_DEFINE(thread_b, STACK_SIZE, thread_b_fn,
+                NULL, NULL, NULL, THREAD_PRIORITY, 0, 0);
 
 int main(void)
 {
-	LOG_INF("MAIN running");
+    LOG_INF("Starting race-condition experiment");
+
+    /* Give the worker threads time to finish. */
+    k_msleep(1000);
+
+    LOG_INF("Expected counter: %d", NUM_ITERATIONS * 2);
+    LOG_INF("Actual counter: %d", shared_counter);
+
     return 0;
 }
-
