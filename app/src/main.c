@@ -5,10 +5,12 @@
 LOG_MODULE_REGISTER(homework, LOG_LEVEL_INF);
 
 #define STACK_SIZE            2048
-#define CONTROL_PRIORITY         7
-#define MAINTENANCE_PRIORITY     4
+#define CONTROL_PRIORITY         4//7
+#define MAINTENANCE_PRIORITY     7//4
 #define EVENT_PERIOD_MS        250
 #define MAINTENANCE_LOAD_US  45000
+#define CONTROL_DEADLINE_MS 	10
+#define WARNING_INTERVAL_MS   1000
 
 struct control_event {
     uint32_t seq;
@@ -17,6 +19,9 @@ struct control_event {
 
 K_MSGQ_DEFINE(control_queue, sizeof(struct control_event), 4, 4);
 K_SEM_DEFINE(maintenance_start, 0, 1);
+
+static uint32_t deadline_misses;
+static uint32_t last_warning_ms;
 
 /* ================================================================== */
 /*  Timer expiry: creates one control event                           */
@@ -43,6 +48,7 @@ static void event_timer_expiry(struct k_timer *timer)
     k_sem_give(&maintenance_start);
 
     /* TODO: Add an application trace event for this sequence. */
+	//sys_trace_named_event("control_ready", event.seq, event.ready_ms);
 }
 
 K_TIMER_DEFINE(event_timer, event_timer_expiry, NULL);
@@ -64,12 +70,29 @@ static void control_fn(void *p1, void *p2, void *p3)
             continue;
         }
 
-        LOG_INF("[CONTROL] processed seq=%u", event.seq);
+        //LOG_INF("[CONTROL] processed seq=%u", event.seq);
 
         /* TODO: Define a response-time guarantee. */
         /* TODO: Measure latency and count every deadline miss. */
         /* TODO: Rate-limit repeated warning messages. */
         /* TODO: Add an application trace event for completion. */
+		
+		uint32_t now_ms = k_uptime_get_32();
+        uint32_t latency_ms = now_ms - event.ready_ms;
+
+        LOG_INF("[CONTROL] start seq=%u latency=%u ms", event.seq, latency_ms);
+
+        if (latency_ms > CONTROL_DEADLINE_MS) {
+            deadline_misses++;
+
+            if ((now_ms - last_warning_ms) >= WARNING_INTERVAL_MS) {
+                LOG_WRN("[CONTROL] deadline miss seq=%u latency=%u ms misses=%u",
+                        event.seq, latency_ms, deadline_misses);
+                last_warning_ms = now_ms;
+            }
+        }
+
+        //sys_trace_named_event("control_start", event.seq, latency_ms);
     }
 }
 
